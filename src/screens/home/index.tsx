@@ -11,6 +11,7 @@ import {IProduct} from './interfaces';
 import {Card} from '../../components/HOC/card';
 import {screenDimension} from '../../utils/dimensionUtils';
 import {gifLimit} from './constants';
+import {useTheme} from '@react-navigation/native';
 
 const Home: FC<any> = (): React.ReactElement => {
   const [gifs, setGifs] = useState(null);
@@ -84,6 +85,9 @@ const Home: FC<any> = (): React.ReactElement => {
     }, 300);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  //TODO: Shivam: use theme for dark theme support
+  const {colors} = useTheme();
 
   return (
     <View style={styles.container}>
