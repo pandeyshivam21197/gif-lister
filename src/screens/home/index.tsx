@@ -47,16 +47,22 @@ const Home: FC<any> = (): React.ReactElement => {
     const {isTrending, gifSearch} = apiConfig.current;
     const isSearching = !!gifSearch;
 
-    const res = await ApiClient.get(
-      isSearching && isTrending
-        ? END_POINTS.trendingSearches
-        : isTrending
-        ? END_POINTS.trending
-        : END_POINTS.search,
-      {offset: apiConfig.current.offset, limit: gifLimit, q: gifSearch},
-    );
+    try {
+      const res = await ApiClient.get(
+        isSearching && isTrending
+          ? END_POINTS.trendingSearches
+          : isTrending
+          ? END_POINTS.trending
+          : END_POINTS.search,
+        {offset: apiConfig.current.offset, limit: gifLimit, q: gifSearch},
+      );
 
-    setGifs(res.data);
+      if (res?.data) {
+        setGifs(res?.data);
+      }
+    } catch (e) {
+      console.error(e);
+    }
   }, []);
 
   useEffect(() => {
