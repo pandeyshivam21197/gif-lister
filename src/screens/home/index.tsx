@@ -1,143 +1,101 @@
 import React, {FC, useCallback, useEffect, useRef, useState} from 'react';
-import {
-  Alert,
-  FlatList,
-  Linking,
-  StyleSheet,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import {FlatList, StyleSheet, TouchableOpacity, View} from 'react-native';
 import Loader from '../../components/atoms/loader';
 import Text from '../../components/atoms/text';
-import Button from '../../components/atoms/button';
+import {Switch} from '../../components/atoms/switch';
+import TextInput from '../../components/atoms/textInput';
 import Image from '../../components/atoms/image';
 import {ApiClient} from '../../network/client';
 import {END_POINTS} from '../../network/contants';
 import {IProduct} from './interfaces';
 import {Card} from '../../components/HOC/card';
 import {screenDimension} from '../../utils/dimensionUtils';
-import {
-  Camera,
-  CameraPermissionStatus,
-  useCameraDevices,
-  useFrameProcessor,
-} from 'react-native-vision-camera';
-import {superImposeImage} from '../../plugins';
-import {runOnJS} from 'react-native-reanimated';
+import {gifLimit} from './constants';
 
 const Home: FC<any> = (): React.ReactElement => {
-  const [products, setProducts] = useState(null);
-  const [camerConfig, setCamerConfig] = useState({cameraVisible: false});
+  const [gifs, setGifs] = useState(null);
+  const apiConfig = useRef({
+    isTrending: false,
+    gifSearch: '',
+    offset: 0,
+  });
 
-  const image = useRef<string>();
-  const base64Image = useRef<string>('');
+  const debounce = useRef<number>();
 
-  const {cameraVisible} = camerConfig;
+  const renderProducts = useCallback(({item}: {item: IProduct}) => {
+    const {title, url} = item;
 
-  const devices = useCameraDevices();
-  const device = devices.back;
-
-  const isDeviceAvailable = !!device;
-
-  const onCameraGoBack = useCallback(() => {
-    setCamerConfig(prevState => ({...prevState, cameraVisible: false}));
-  }, []);
-
-  const showPermissionBlockedPopup = () => {
-    return Alert.alert(
-      'The Camer permission has been denied earlier',
-      'it can be enabled from the settings',
-      [
-        {
-          text: 'Cancel',
-          onPress: () => console.info('Cancel Pressed'),
-          style: 'cancel',
-        },
-        {text: 'Open Settings', onPress: () => Linking.openSettings()},
-      ],
+    return (
+      <TouchableOpacity onPress={() => {}}>
+        <Card style={styles.card}>
+          <Image source={{uri: url}} style={styles.productImage} />
+          <View>
+            <Text numberOfLines={1}>{title}</Text>
+          </View>
+        </Card>
+      </TouchableOpacity>
     );
-  };
-
-  const onProduct = useCallback(async (item: IProduct) => {
-    const {thumbnail} = item;
-
-    let cameraPermission: CameraPermissionStatus =
-      await Camera.getCameraPermissionStatus();
-
-    if (cameraPermission === 'denied') {
-      await Camera.requestCameraPermission();
-    }
-
-    cameraPermission = await Camera.getCameraPermissionStatus();
-
-    if (cameraPermission === 'authorized') {
-      image.current = thumbnail;
-
-      setCamerConfig(prevState => ({...prevState, cameraVisible: true}));
-      //TODO
-    } else {
-      showPermissionBlockedPopup();
-    }
   }, []);
-
-  const renderProducts = useCallback(
-    ({item}: {item: IProduct}) => {
-      const {thumbnail, title, description, price} = item;
-
-      return (
-        <TouchableOpacity onPress={() => onProduct(item)}>
-          <Card style={styles.card}>
-            <Image source={{uri: thumbnail}} style={styles.productImage} />
-            <View>
-              <Text numberOfLines={1}>{price}</Text>
-              <Text numberOfLines={1}>{title}</Text>
-              <Text numberOfLines={1}>{description}</Text>
-            </View>
-          </Card>
-        </TouchableOpacity>
-      );
-    },
-    [onProduct],
-  );
 
   const renderItemSeparator = useCallback(
     () => <View style={styles.separator} />,
     [],
   );
 
-  const onImage = useCallback((image64: string) => {
-    base64Image.current = image64;
-  }, []);
+  const getProducts = useCallback(async () => {
+    const {isTrending, gifSearch} = apiConfig.current;
+    const isSearching = !!gifSearch;
 
-  const frameProcessor = useFrameProcessor(frame => {
-    'worklet';
+    const res = await ApiClient.get(
+      isSearching && isTrending
+        ? END_POINTS.trendingSearches
+        : isTrending
+        ? END_POINTS.trending
+        : END_POINTS.search,
+      {offset: apiConfig.current.offset, limit: gifLimit, q: gifSearch},
+    );
 
-    const res = superImposeImage(frame, image.current);
-
-    runOnJS(onImage)(res?.base64Image || '');
+    setGifs(res.data);
   }, []);
 
   useEffect(() => {
-    //TODO: api
-    const getProducts = async () => {
-      const res = await ApiClient.get(END_POINTS.products);
-
-      setProducts(res.products);
-    };
-
     getProducts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (!products) {
-    return <Loader />;
-  }
+  const toggleSwitch = useCallback((newValue: boolean) => {
+    apiConfig.current.offset = 0;
+    apiConfig.current.isTrending = newValue;
+
+    getProducts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const onChangeText = useCallback((searchText: string) => {
+    debounce.current = setTimeout(() => {
+      if (debounce.current) {
+        clearTimeout(debounce.current);
+      }
+
+      apiConfig.current.offset = 0;
+      apiConfig.current.gifSearch = searchText;
+
+      getProducts();
+    }, 300);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>{'Products:'}</Text>
+      {!gifs && <Loader />}
+      <TextInput style={styles.searchInput} onChangeText={onChangeText} />
+      <View style={styles.switchContainer}>
+        <Text>{'Switch for trending'}</Text>
+        <Switch onChange={toggleSwitch} value={apiConfig.current.isTrending} />
+      </View>
       <FlatList
         scrollEnabled
-        data={products}
+        data={gifs}
         renderItem={renderProducts}
         numColumns={2}
         ItemSeparatorComponent={renderItemSeparator}
@@ -145,36 +103,17 @@ const Home: FC<any> = (): React.ReactElement => {
         columnWrapperStyle={styles.columnContainer}
         keyExtractor={item => `${item.id}`}
         removeClippedSubviews
+        onEndReached={() => {
+          apiConfig.current.offset = apiConfig.current.offset + gifLimit;
+          getProducts();
+        }}
       />
-      {isDeviceAvailable && cameraVisible && (
-        <View style={StyleSheet.absoluteFill}>
-          <Camera
-            style={StyleSheet.absoluteFill}
-            device={device}
-            isActive={true}
-            frameProcessor={frameProcessor}
-          />
-          <Button
-            onPress={onCameraGoBack}
-            title={'Go Back'}
-            color="#841584"
-            accessibilityLabel="scan another"
-          />
-        </View>
-      )}
-
-      {base64Image.current && (
-        <Image
-          style={{width: 200, height: 200, position: 'absolute', top: 100}}
-          source={{uri: `data:image/png;base64,${base64Image.current}`}}
-        />
-      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {flex: 1},
+  container: {flex: 1, padding: 16},
   separator: {width: 24},
   columnContainer: {
     flex: 1,
@@ -200,6 +139,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 16,
     marginHorizontal: 16,
+  },
+  searchInput: {
+    borderWidth: 1,
+    borderColor: 'black',
+  },
+  switchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 16,
   },
 });
 

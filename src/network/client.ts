@@ -1,13 +1,23 @@
 import axios, {AxiosRequestConfig, AxiosInstance} from 'axios';
 import {responseInterceptors} from './interceptors';
+import {API_KEY} from '../config/env.json';
+
+export const contentType = 'application/json';
 
 class ApiClient {
   apiclient: AxiosInstance;
 
   constructor() {
     let axiosInstance = axios.create({
-      baseURL: 'https://dummyjson.com/',
-      timeout: 600000,
+      baseURL: 'https://api.giphy.com/v1/gifs/',
+      timeout: 30000,
+      params: {
+        api_key: API_KEY,
+      },
+      headers: {
+        Accept: contentType,
+        'Content-Type': contentType,
+      },
     });
 
     const {onRejected, onResponse} = responseInterceptors();

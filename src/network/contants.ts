@@ -7,5 +7,8 @@ export enum API_METHODS {
 }
 
 export const END_POINTS = {
-  products: 'products',
+  random: 'random',
+  trending: 'trending',
+  search: 'search',
+  trendingSearches: 'trending/searches',
 };
